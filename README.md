@@ -12,7 +12,7 @@
   - [8. Проверка правильности скобок в выражении](#8-дана-строка--арифметическое-выражение-определить-правильность-расстановки-скобок-выдать-на-печать-yes-или-no)
   - [9. Рекурсивный факториал](#9-рекурсия-факториал-параметры-через-регистры)
   - [10. Рекурсивное вычисление числа Фибоначчи](#10-рекурсия--фибоначчи-параметры-через-регистры)
-
+  - [11. Обратная польская нотация](#11-обратная-польская-нотация)
 Документация [макро-библиотека ввода/вывода "st_io"](st_io.inc).
 
 | Функция | Принимаемые/отдаваемые значения | Описание |
@@ -561,4 +561,94 @@ fibonacci:
     mov esp, ebp 
     pop ebp 
     ret
+```
+
+### 11. Обратная польская нотация
+
+```asm
+section .data
+    ; Пример выражения в ОПН: "3 4 + 2 *"
+    expr db "3 4 + 2 *", 0
+    expr_len equ $ - expr - 1
+
+section .text
+global _start
+
+_start:
+    xor esi, esi          ; Индекс в строке выражения
+
+parse_loop:
+    cmp esi, expr_len     ; Проверяем конец строки
+    jge evaluate_done
+
+    mov al, [expr + esi]  ; Читаем текущий символ
+    cmp al, ' '           ; Пропускаем пробелы
+    je next_char
+
+    ; Проверяем, является ли символ числом (0-9)
+    cmp al, '0'
+    jl check_operator
+    cmp al, '9'
+    jg check_operator
+
+    ; Если число, пушим его в стек
+    sub al, '0'           ; Преобразуем символ в число
+    movzx eax, al         ; Расширяем до 32 бит
+    push eax              ; Помещаем число в стек
+    jmp next_char
+
+check_operator:
+    ; Проверяем, является ли символ оператором
+    cmp al, '+'
+    je handle_operator
+    cmp al, '-'
+    je handle_operator
+    cmp al, '*'
+    je handle_operator
+    cmp al, '/'
+    je handle_operator
+    jmp next_char         ; Если не число и не оператор, пропускаем
+
+handle_operator:
+    ; Извлекаем два операнда из стека
+    pop ebx               ; Второй операнд (ebx)
+    pop eax               ; Первый операнд (eax)
+
+    ; Выполняем операцию в зависимости от символа
+    cmp byte [expr + esi], '+'
+    je do_add
+    cmp byte [expr + esi], '-'
+    je do_sub
+    cmp byte [expr + esi], '*'
+    je do_mul
+    cmp byte [expr + esi], '/'
+    je do_div
+
+do_add:
+    add eax, ebx          ; eax = eax + ebx
+    jmp push_result
+do_sub:
+    sub eax, ebx          ; eax = eax - ebx
+    jmp push_result
+do_mul:
+    imul eax, ebx         ; eax = eax * ebx
+    jmp push_result
+do_div:
+    cdq                   ; Расширяем eax до edx:eax для деления
+    idiv ebx              ; eax = eax / ebx
+    jmp push_result
+
+push_result:
+    push eax              ; Помещаем результат обратно в стек
+
+next_char:
+    inc esi               ; Переходим к следующему символу
+    jmp parse_loop
+
+evaluate_done:
+    ; Результат остается в стеке на вершине
+    ; Завершение программы
+    mov eax, 1            ; sys_exit
+    xor ebx, ebx          ; Код возврата 0
+    int 0x80
 ```
